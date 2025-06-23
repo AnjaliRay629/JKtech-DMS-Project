@@ -1,0 +1,91 @@
+#version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: docmgmt_app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_BOOT_JAVA_OPTS=-Dh2.console.webAllowOthers=true
+    #      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - docmgmt-network
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.13
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - docmgmt-network
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docmgmt-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docmgmt-network
+    restart: unless-stopped
+
+# Optional Postgres block if needed in future
+#  db:
+#    image: postgres:16
+#    container_name: postgres_db
+#    environment:
+#      - POSTGRES_DB=docmgmt
+#      - POSTGRES_USER=postgres
+#      - POSTGRES_PASSWORD=password
+#    ports:
+#      - "5432:5432"
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
+#    networks:
+#      - docmgmt-network
+#    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  docmgmt-network:
+    name: docmgmt-network
